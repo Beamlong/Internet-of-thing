@@ -1,58 +1,109 @@
-/*************************************************************
-  Download latest Blynk library here:
-    https://github.com/blynkkk/blynk-library/releases/latest
-  Blynk is a platform with iOS and Android apps to control
-  Arduino, Raspberry Pi and the likes over the Internet.
-  You can easily build graphic interfaces for all your
-  projects by simply dragging and dropping widgets.
-    
-    Sketch generator:           http://examples.blynk.cc
-  Blynk library is licensed under MIT license
-  This example code is in public domain.
- *************************************************************
-  This example runs directly on NodeMCU.
-  Note: This requires ESP8266 support package:
-    https://github.com/esp8266/Arduino
-  Please be sure to select the right NodeMCU module
-  in the Tools -> Board menu!
-  For advanced settings please follow ESP examples :
-   - ESP8266_Standalone_Manual_IP.ino
-   - ESP8266_Standalone_SmartConfig.ino
-   - ESP8266_Standalone_SSL.ino
-  Change WiFi ssid, pass, and Blynk auth token to run :)
-  Feel free to apply it to any other example. It's simple!
- *************************************************************/
-
-/* Comment this out to disable prints and save space */
-#define BLYNK_PRINT Serial
-
-
 #include <ESP8266WiFi.h>
-#include <BlynkSimpleEsp8266.h>
 
-// You should get Auth Token in the Blynk App.
-// Go to the Project Settings (nut icon).
-char auth[] = "YourAuthToken";
+const char* ssid = "MSI";
+const char* password = "0631467311";
 
-// Your WiFi credentials.
-// Set password to "" for open networks.
-char ssid[] = "YourNetworkName";
-char pass[] = "YourPassword";
-int relayPin = 3;
-int loopDelay = 1000;// delay in loop
 
-void setup()
+int ledpin=2;    // D4 in ModeMcu
+WiFiServer server(80);
+
+void setup() 
 {
-  // Debug console
-  Serial.begin(9600);
+  Serial.begin(115200);
+  delay(10);
+  pinMode(ledpin,OUTPUT);
+  digitalWrite(ledpin,LOW);
+  //connect to WiFi network
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
 
-  Blynk.begin(auth, ssid, pass);
-  // You can also specify server:
-  //Blynk.begin(auth, ssid, pass, "blynk-cloud.com", 8442);
-  //Blynk.begin(auth, ssid, pass, IPAddress(192,168,1,100), 8442);
+  WiFi.begin (ssid,password);
+
+  while (WiFi.status()!=WL_CONNECTED)
+  {  delay(500);
+     Serial.print(".");
+  }
+
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  // Start the server
+  server.begin();
+  Serial.println("Server started");
+
+  //Print the IP Address
+
+  Serial.print("Use this url to connect: ");
+  Serial.print("http://");
+  Serial.print(WiFi.localIP());
+  Serial.println("/");
+  
 }
 
-void loop()
-{
-  Blynk.run();
-}
+void loop() 
+  {
+// Check if a client has connected
+WiFiClient client = server.available();
+if (!client)
+  { 
+    return;
+  }
+  //Wait until the client sends some data
+
+  Serial.println("new client");
+  while (!client.available())
+  {
+    delay(1);
+  }
+
+  // Read the first line of the request
+  String request = client.readStringUntil('\r');
+  Serial.println(request);
+  client.flush();
+  //Match the request
+
+  int value=LOW;
+  if (request.indexOf(" /LED=ON")!=-1)
+  {
+    digitalWrite(ledpin,1);
+    value=HIGH ; 
+  }
+
+  if (request.indexOf(" /LED=OFF")!=-1)
+  {
+    digitalWrite(ledpin,0);
+    value=LOW ;
+  }
+  // Set ledpin according to the request
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/html");
+  client.println("");// do not forget this one
+  client.println("<!DOCTYPE HTML>");
+  client.println("<html>");
+  client.println("<title>switch</title>");
+
+  client.print("Led pin is now: ");
+
+  if (value==HIGH)
+  {
+    client.print("OFF");
+
+  }
+  else
+  {
+    client.print("ON");
+  }
+
+
+  client.println("<br><br>");
+  client.println("<a href=\"/LED=OFF\"\"><button>Turn <b>ON</b></button></a>");
+  client.println("<a href=\"/LED=ON\"\"><button>Turn <b>OFF</b></button></a></br>");
+  client.println("</html>");
+
+  delay(1);
+
+  Serial.println("Client disconnected");
+  Serial.println("");
+  }
